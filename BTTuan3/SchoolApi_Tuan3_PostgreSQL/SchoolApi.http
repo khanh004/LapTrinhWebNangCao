@@ -1,0 +1,33 @@
+@host = https://localhost:7155
+
+### 1. Dang nhap sinh vien
+# @name loginStudent
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "sv001@hnmu.edu.vn",
+  "password": "Lab#2026_ChangeMe"
+}
+
+### 2. Thieu token -> 401
+GET {{host}}/api/students
+
+### 3. Student xoa student -> 403
+DELETE {{host}}/api/students/1
+Authorization: Bearer {{loginStudent.response.body.accessToken}}
+
+### 4. Student sua student khac -> 403
+PUT {{host}}/api/students/999
+Authorization: Bearer {{loginStudent.response.body.accessToken}}
+Content-Type: application/json
+
+{
+  "programmeId": 1,
+  "studentCode": "TEST999",
+  "fullName": "Doi ten nguoi khac",
+  "email": "test999@example.com",
+  "dateOfBirth": "2003-01-01",
+  "yearOfEntry": 2026,
+  "status": "ACTIVE"
+}
