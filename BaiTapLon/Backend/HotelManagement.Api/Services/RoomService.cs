@@ -14,6 +14,7 @@ public interface IRoomService
     Task<bool> UpdateStatusAsync(Guid id, UpdateRoomStatusDto dto);
     Task<bool> DeleteAsync(Guid id);
     Task<(bool Success, string? Error)> ConfirmCleaningAsync(Guid roomId, Guid performedBy);
+    Task<RoomAvailabilityDto?> CheckAvailabilityAsync(Guid roomId, DateOnly checkIn, DateOnly checkOut);
 }
 
 public class RoomService : IRoomService
@@ -134,4 +135,78 @@ public class RoomService : IRoomService
 
         return (true, null);
     }
+    public async Task<RoomAvailabilityDto?> CheckAvailabilityAsync(Guid roomId, DateOnly checkIn, DateOnly checkOut)
+{
+    var room = await _context.Rooms.Include(r => r.RoomType).FirstOrDefaultAsync(r => r.Id == roomId);
+    if (room is null) return null;
+
+    var result = new RoomAvailabilityDto
+    {
+        RoomId = room.Id,
+        RoomNumber = room.RoomNumber,
+        CurrentStatus = room.Status.ToString()
+    };
+
+    // ---------- TH3: Phòng đang bảo trì ----------
+    if (room.Status == RoomStatus.MAINTENANCE)
+    {
+        result.CanBookImmediately = false;
+        result.SuggestedAlternativeRooms = await GetAlternativeRoomsAsync(room.RoomTypeId, checkIn, checkOut, roomId);
+        return result;
+    }
+
+    // ---------- TH2: Phòng đang dọn dẹp -> tính giờ dự kiến xong ----------
+    if (room.Status == RoomStatus.CLEANING)
+    {
+        var lastCheckOutTime = await _context.CheckOuts
+            .Where(c => c.Booking.RoomId == roomId)
+            .OrderByDescending(c => c.ActualCheckOut)
+            .Select(c => (DateTime?)c.ActualCheckOut)
+            .FirstOrDefaultAsync();
+
+        // Thời gian dọn dẹp dự kiến: 30 phút kể từ lúc khách trả phòng
+        result.EstimatedCleaningReadyAt = lastCheckOutTime?.AddMinutes(30);
+    }
+
+    // ---------- TH1: Kiểm tra trùng lịch với booking khác ----------
+    var conflicting = await _context.Bookings
+        .Where(b => b.RoomId == roomId &&
+            b.Status != BookingStatus.CANCELLED && b.Status != BookingStatus.CHECKED_OUT &&
+            b.CheckInDate < checkOut && b.CheckOutDate > checkIn)
+        .OrderByDescending(b => b.CheckOutDate)
+        .FirstOrDefaultAsync();
+
+    if (conflicting is not null)
+    {
+        result.CanBookImmediately = false;
+        result.ConflictUntil = conflicting.CheckOutDate;
+        result.SuggestedAlternativeRooms = await GetAlternativeRoomsAsync(room.RoomTypeId, checkIn, checkOut, roomId);
+    }
+    else if (room.Status != RoomStatus.MAINTENANCE)
+    {
+        result.CanBookImmediately = true;
+    }
+
+    return result;
+}
+
+// Tìm phòng khác cùng loại, không bảo trì, không trùng lịch trong khoảng ngày yêu cầu
+private async Task<List<RoomDto>> GetAlternativeRoomsAsync(Guid roomTypeId, DateOnly checkIn, DateOnly checkOut, Guid excludeRoomId)
+{
+    var candidates = await _context.Rooms
+        .Include(r => r.RoomType)
+        .Where(r => r.RoomTypeId == roomTypeId && r.Id != excludeRoomId && r.Status != RoomStatus.MAINTENANCE)
+        .ToListAsync();
+
+    var available = new List<RoomDto>();
+    foreach (var r in candidates)
+    {
+        var hasConflict = await _context.Bookings.AnyAsync(b =>
+            b.RoomId == r.Id && b.Status != BookingStatus.CANCELLED && b.Status != BookingStatus.CHECKED_OUT &&
+            b.CheckInDate < checkOut && b.CheckOutDate > checkIn);
+        if (!hasConflict && r.Status != RoomStatus.CLEANING)
+            available.Add(ToDto(r));
+    }
+    return available;
+}
 }

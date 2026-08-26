@@ -116,7 +116,8 @@ public class BookingService : IBookingService
         if (room is null) return (null, "Phòng không tồn tại.");
         if (room.Status == RoomStatus.MAINTENANCE)
             return (null, "Phòng đang bảo trì, không thể đặt.");
-
+        if (room.Status == RoomStatus.CLEANING)
+            return (null, "Phòng đang dọn dẹp, chưa thể đặt.");
         if (!await _context.Customers.AnyAsync(c => c.Id == dto.CustomerId))
             return (null, "Khách hàng không tồn tại.");
 

@@ -72,4 +72,11 @@ public class RoomsController : ControllerBase
         var (success, error) = await _service.ConfirmCleaningAsync(id, employeeId);
         return success ? NoContent() : BadRequest(error);
     }
+    [HttpGet("{id:guid}/check-availability")]
+    public async Task<ActionResult<RoomAvailabilityDto>> CheckAvailability(
+        Guid id, [FromQuery] DateOnly checkIn, [FromQuery] DateOnly checkOut)
+    {
+        var result = await _service.CheckAvailabilityAsync(id, checkIn, checkOut);
+        return result is null ? NotFound() : Ok(result);
+    }
 }
