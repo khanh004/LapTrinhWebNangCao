@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace HotelManagement.Api.Data;
 
 public static class DataSeeder
+
 {
+    public static readonly Guid SystemEmployeeId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     public static async Task SeedAsync(ApplicationDbContext context)
     {
         if (await context.Users.AnyAsync()) return; // đã seed rồi thì bỏ qua toàn bộ
@@ -41,7 +43,15 @@ public static class DataSeeder
         var admin = new Employee { Id = Guid.NewGuid(), FullName = "Quản trị viên", Position = "Admin", IsActive = true, CreatedAt = DateTime.UtcNow };
         var receptionist = new Employee { Id = Guid.NewGuid(), FullName = "Nguyễn Văn Lễ Tân", Position = "Receptionist", IsActive = true, CreatedAt = DateTime.UtcNow };
         var housekeeper = new Employee { Id = Guid.NewGuid(), FullName = "Trần Thị Buồng Phòng", Position = "Housekeeping", IsActive = true, CreatedAt = DateTime.UtcNow };
-        context.Employees.AddRange(admin, receptionist, housekeeper);
+        var systemEmployee = new Employee
+{
+    Id = SystemEmployeeId,
+    FullName = "Hệ thống (Tự động)",
+    Position = "System",
+    IsActive = true,
+    CreatedAt = DateTime.UtcNow
+};
+context.Employees.AddRange(admin, receptionist, housekeeper, systemEmployee);
 
         var adminUser = new User { Id = Guid.NewGuid(), Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"), EmployeeId = admin.Id, IsActive = true, CreatedAt = DateTime.UtcNow };
         var receptionistUser = new User { Id = Guid.NewGuid(), Username = "letan", PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"), EmployeeId = receptionist.Id, IsActive = true, CreatedAt = DateTime.UtcNow };

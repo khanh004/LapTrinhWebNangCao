@@ -83,4 +83,16 @@ public async Task<IActionResult> CheckOut(Guid id, [FromBody] CheckOutRequestDto
         var (success, error) = await _service.CancelAsync(id, CurrentEmployeeId);
         return success ? NoContent() : BadRequest(error);
     }
+
+    [HttpPatch("{id:guid}/note-late-arrival")]
+[Authorize(Roles = "Admin,Receptionist")]
+public async Task<IActionResult> NoteLateArrival(Guid id, [FromBody] NoteLateArrivalDto dto)
+{
+    var (success, error) = await _service.NoteLateArrivalAsync(id, dto, CurrentEmployeeId);
+    return success ? NoContent() : BadRequest(error);
+}
+
+[HttpGet("by-customer/{customerId:guid}")]
+public async Task<ActionResult<List<BookingDto>>> GetByCustomer(Guid customerId)
+    => Ok(await _service.GetByCustomerAsync(customerId));
 }

@@ -9,7 +9,9 @@ public enum BookingAction
     EARLY_CHECKOUT,
     EXTENDED,
     LATE_CHECKOUT,
-    CANCELLED
+    CANCELLED,
+    AUTO_CANCELLED_NO_SHOW,
+    LATE_ARRIVAL_NOTED
 }
 
 public class BookingLog

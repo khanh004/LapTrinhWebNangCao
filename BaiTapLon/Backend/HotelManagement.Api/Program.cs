@@ -65,6 +65,7 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IRoomWaitlistService, RoomWaitlistService>();
+builder.Services.AddHostedService<NoShowCancellationBackgroundService>();
 
 var app = builder.Build();
 
