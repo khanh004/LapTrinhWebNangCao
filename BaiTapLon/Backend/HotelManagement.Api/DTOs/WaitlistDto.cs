@@ -1,8 +1,20 @@
 namespace HotelManagement.Api.DTOs;
 
+public class NewCustomerInfoDto
+{
+    public string FullName { get; set; } = null!;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? IdentityNumber { get; set; }
+}
+
 public class JoinWaitlistDto
 {
-    public Guid CustomerId { get; set; }
+    // Khách cũ: truyền CustomerId (lễ tân đã search thấy trước đó).
+    // Khách mới: để CustomerId null và điền NewCustomer.
+    public Guid? CustomerId { get; set; }
+    public NewCustomerInfoDto? NewCustomer { get; set; }
+
     public Guid RoomId { get; set; }
     public DateOnly DesiredCheckIn { get; set; }
     public DateOnly DesiredCheckOut { get; set; }

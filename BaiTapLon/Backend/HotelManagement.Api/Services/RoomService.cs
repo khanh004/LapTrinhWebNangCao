@@ -38,6 +38,53 @@ public class RoomService : IRoomService
         Floor = r.Floor
     };
 
+    // Gắn thêm thông tin booking hiện tại + hàng chờ vào danh sách RoomDto đã có, tránh N+1 query
+    private async Task<List<RoomDto>> AttachDetailsAsync(List<Room> rooms)
+    {
+        var roomIds = rooms.Select(r => r.Id).ToList();
+
+        var activeBookings = await _context.Bookings
+            .Where(b => roomIds.Contains(b.RoomId) &&
+                b.Status != BookingStatus.CANCELLED && b.Status != BookingStatus.CHECKED_OUT)
+            .OrderBy(b => b.CheckInDate)
+            .ToListAsync();
+
+        var waitlistEntries = await _context.RoomWaitlist
+            .Include(w => w.Customer)
+            .Where(w => roomIds.Contains(w.RoomId) &&
+                (w.Status == WaitlistStatus.WAITING || w.Status == WaitlistStatus.NOTIFIED))
+            .OrderBy(w => w.QueuePosition)
+            .ToListAsync();
+
+        return rooms.Select(r =>
+        {
+            var dto = ToDto(r);
+
+            var currentBooking = activeBookings.FirstOrDefault(b => b.RoomId == r.Id);
+            if (currentBooking is not null)
+            {
+                dto.CurrentBookingCheckIn = currentBooking.CheckInDate;
+                dto.CurrentBookingCheckOut = currentBooking.CheckOutDate;
+            }
+
+            dto.WaitingCustomers = waitlistEntries
+                .Where(w => w.RoomId == r.Id)
+                .Select(w => new WaitlistDto
+                {
+                    Id = w.Id,
+                    CustomerName = w.Customer.FullName,
+                    RoomNumber = r.RoomNumber,
+                    DesiredCheckIn = w.DesiredCheckIn,
+                    DesiredCheckOut = w.DesiredCheckOut,
+                    Status = w.Status.ToString(),
+                    QueuePosition = w.QueuePosition,
+                    CreatedAt = w.CreatedAt
+                }).ToList();
+
+            return dto;
+        }).ToList();
+    }
+
     public async Task<List<RoomDto>> GetAllAsync(string? status, string? search)
     {
         var query = _context.Rooms.Include(r => r.RoomType).AsQueryable();
@@ -53,17 +100,18 @@ public class RoomService : IRoomService
             query = query.Where(r => r.RoomNumber.Contains(search));
         }
 
-        return await query
-            .OrderBy(r => r.RoomNumber)
-            .Select(r => ToDto(r))
-            .ToListAsync();
+        var rooms = await query.OrderBy(r => r.RoomNumber).ToListAsync();
+        return await AttachDetailsAsync(rooms);
     }
 
     public async Task<RoomDto?> GetByIdAsync(Guid id)
     {
         var entity = await _context.Rooms.Include(r => r.RoomType)
             .FirstOrDefaultAsync(r => r.Id == id);
-        return entity is null ? null : ToDto(entity);
+        if (entity is null) return null;
+
+        var list = await AttachDetailsAsync(new List<Room> { entity });
+        return list.First();
     }
 
     public async Task<RoomDto> CreateAsync(CreateRoomDto dto)
@@ -147,7 +195,7 @@ public class RoomService : IRoomService
         CurrentStatus = room.Status.ToString()
     };
 
-    // ---------- TH3: Phòng đang bảo trì ----------
+    // TH3: Phòng đang bảo trì
     if (room.Status == RoomStatus.MAINTENANCE)
     {
         result.CanBookImmediately = false;
@@ -155,7 +203,7 @@ public class RoomService : IRoomService
         return result;
     }
 
-    // ---------- TH2: Phòng đang dọn dẹp -> tính giờ dự kiến xong ----------
+    // TH2: Phòng đang dọn dẹp -> tính giờ dự kiến xong (giờ trả phòng + 30 phút)
     if (room.Status == RoomStatus.CLEANING)
     {
         var lastCheckOutTime = await _context.CheckOuts
@@ -164,11 +212,10 @@ public class RoomService : IRoomService
             .Select(c => (DateTime?)c.ActualCheckOut)
             .FirstOrDefaultAsync();
 
-        // Thời gian dọn dẹp dự kiến: 30 phút kể từ lúc khách trả phòng
         result.EstimatedCleaningReadyAt = lastCheckOutTime?.AddMinutes(30);
     }
 
-    // ---------- TH1: Kiểm tra trùng lịch với booking khác ----------
+    // TH1: Kiểm tra trùng lịch với booking khác
     var conflicting = await _context.Bookings
         .Where(b => b.RoomId == roomId &&
             b.Status != BookingStatus.CANCELLED && b.Status != BookingStatus.CHECKED_OUT &&
@@ -190,7 +237,6 @@ public class RoomService : IRoomService
     return result;
 }
 
-// Tìm phòng khác cùng loại, không bảo trì, không trùng lịch trong khoảng ngày yêu cầu
 private async Task<List<RoomDto>> GetAlternativeRoomsAsync(Guid roomTypeId, DateOnly checkIn, DateOnly checkOut, Guid excludeRoomId)
 {
     var candidates = await _context.Rooms

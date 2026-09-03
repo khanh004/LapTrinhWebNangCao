@@ -22,6 +22,13 @@ public class Booking
     public string BookingCode { get; set; } = null!;
     public DateOnly CheckInDate { get; set; }
     public DateOnly CheckOutDate { get; set; }
+
+    // Ngày trả dự kiến BAN ĐẦU - không đổi khi gia hạn, dùng để tách "gốc" vs "gia hạn" khi tính hóa đơn
+    public DateOnly OriginalCheckOutDate { get; set; }
+
+    // Số giờ gia hạn thêm đã được lễ tân duyệt trước (khác trễ giờ ngoài ý muốn)
+    public int ApprovedExtraHours { get; set; } = 0;
+
     public BookingStatus Status { get; set; } = BookingStatus.PENDING;
     public DateTime CreatedAt { get; set; }
 

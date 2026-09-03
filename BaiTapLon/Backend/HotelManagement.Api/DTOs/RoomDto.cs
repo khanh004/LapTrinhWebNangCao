@@ -8,6 +8,13 @@ public class RoomDto
     public string RoomTypeName { get; set; } = null!;
     public string Status { get; set; } = null!;
     public int? Floor { get; set; }
+
+    // Thời gian thuê dự kiến của khách đang giữ phòng (booking còn hiệu lực gần nhất, nếu có)
+    public DateOnly? CurrentBookingCheckIn { get; set; }
+    public DateOnly? CurrentBookingCheckOut { get; set; }
+
+    // Danh sách khách đang xếp hàng chờ phòng này (nếu có) — để lễ tân báo lại cho khách sau
+    public List<WaitlistDto> WaitingCustomers { get; set; } = new();
 }
 
 public class CreateRoomDto
@@ -26,7 +33,7 @@ public class UpdateRoomDto
 
 public class UpdateRoomStatusDto
 {
-    public string Status { get; set; } = null!; // AVAILABLE, RESERVED, OCCUPIED, MAINTENANCE
+    public string Status { get; set; } = null!;
 }
 
 public class RoomAvailabilityDto

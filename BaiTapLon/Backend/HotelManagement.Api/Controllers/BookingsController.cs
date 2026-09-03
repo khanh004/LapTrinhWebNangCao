@@ -61,12 +61,12 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/check-out")]
-    [Authorize(Roles = "Admin,Receptionist")]
-    public async Task<IActionResult> CheckOut(Guid id, [FromBody] CheckOutRequestDto dto)
-    {
-        var (success, error, total) = await _service.CheckOutAsync(id, dto, CurrentEmployeeId);
-        return success ? Ok(new { totalAmount = total }) : BadRequest(error);
-    }
+[Authorize(Roles = "Admin,Receptionist")]
+public async Task<IActionResult> CheckOut(Guid id, [FromBody] CheckOutRequestDto dto)
+{
+    var (success, error, total, description) = await _service.CheckOutAsync(id, dto, CurrentEmployeeId);
+    return success ? Ok(new { totalAmount = total, invoiceDescription = description }) : BadRequest(error);
+}
 
     [HttpPatch("{id:guid}/extend")]
     [Authorize(Roles = "Admin,Receptionist")]

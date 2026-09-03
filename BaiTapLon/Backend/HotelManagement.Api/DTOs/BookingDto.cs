@@ -10,6 +10,8 @@ public class BookingDto
     public string BookingCode { get; set; } = null!;
     public DateOnly CheckInDate { get; set; }
     public DateOnly CheckOutDate { get; set; }
+    public DateOnly OriginalCheckOutDate { get; set; }
+    public int ApprovedExtraHours { get; set; }
     public string Status { get; set; } = null!;
     public DateTime? ActualCheckIn { get; set; }
     public DateTime? ActualCheckOut { get; set; }
@@ -25,7 +27,14 @@ public class CreateBookingDto
 
 public class ExtendBookingDto
 {
-    public DateOnly NewCheckOutDate { get; set; }
+    // "DAYS" (thêm đêm) hoặc "HOURS" (thêm giờ trong ngày trả dự kiến)
+    public string ExtensionType { get; set; } = "DAYS";
+
+    // Bắt buộc nếu ExtensionType = "DAYS"
+    public DateOnly? NewCheckOutDate { get; set; }
+
+    // Bắt buộc nếu ExtensionType = "HOURS" (tối đa BookingBusinessRules.MaxApprovedExtraHours)
+    public int? AdditionalHours { get; set; }
 }
 
 public class CheckOutRequestDto

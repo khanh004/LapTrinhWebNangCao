@@ -52,8 +52,37 @@ public class RoomWaitlistService : IRoomWaitlistService
         var room = await _context.Rooms.FindAsync(dto.RoomId);
         if (room is null) return (null, "Phòng không tồn tại.");
 
-        if (!await _context.Customers.AnyAsync(c => c.Id == dto.CustomerId))
-            return (null, "Khách hàng không tồn tại.");
+        if (dto.DesiredCheckOut <= dto.DesiredCheckIn)
+            return (null, "Ngày trả phòng mong muốn phải sau ngày nhận phòng.");
+
+        Guid customerId;
+
+        if (dto.CustomerId.HasValue)
+        {
+            // Khách hàng cũ - lễ tân đã search thấy trước đó, chỉ cần xác nhận tồn tại
+            var exists = await _context.Customers.AnyAsync(c => c.Id == dto.CustomerId.Value);
+            if (!exists) return (null, "Khách hàng không tồn tại.");
+            customerId = dto.CustomerId.Value;
+        }
+        else
+        {
+            // Khách hàng mới - tạo mới ngay trước khi thêm vào hàng chờ
+            if (dto.NewCustomer is null || string.IsNullOrWhiteSpace(dto.NewCustomer.FullName))
+                return (null, "Khách hàng mới bắt buộc phải có họ tên.");
+
+            var newCustomer = new Customer
+            {
+                Id = Guid.NewGuid(),
+                FullName = dto.NewCustomer.FullName,
+                Phone = dto.NewCustomer.Phone,
+                Email = dto.NewCustomer.Email,
+                IdentityNumber = dto.NewCustomer.IdentityNumber,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Customers.Add(newCustomer);
+            await _context.SaveChangesAsync();
+            customerId = newCustomer.Id;
+        }
 
         var currentCount = await _context.RoomWaitlist.CountAsync(w =>
             w.RoomId == dto.RoomId && w.Status == WaitlistStatus.WAITING);
@@ -61,7 +90,7 @@ public class RoomWaitlistService : IRoomWaitlistService
         var entity = new RoomWaitlist
         {
             Id = Guid.NewGuid(),
-            CustomerId = dto.CustomerId,
+            CustomerId = customerId,
             RoomId = dto.RoomId,
             DesiredCheckIn = dto.DesiredCheckIn,
             DesiredCheckOut = dto.DesiredCheckOut,

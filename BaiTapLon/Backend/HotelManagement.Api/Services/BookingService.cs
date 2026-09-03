@@ -14,7 +14,7 @@ public interface IBookingService
     Task<(BookingDto? Booking, string? Error)> CreateAsync(CreateBookingDto dto, Guid performedBy);
     Task<(bool Success, string? Error)> ConfirmAsync(Guid id, Guid performedBy);
     Task<(bool Success, string? Error)> CheckInAsync(Guid id, Guid performedBy);
-    Task<(bool Success, string? Error, decimal? TotalAmount)> CheckOutAsync(Guid id, CheckOutRequestDto dto, Guid performedBy);
+    Task<(bool Success, string? Error, decimal? TotalAmount, string? InvoiceDescription)> CheckOutAsync(Guid id, CheckOutRequestDto dto, Guid performedBy);
     Task<(bool Success, string? Error)> ExtendAsync(Guid id, ExtendBookingDto dto, Guid performedBy);
     Task<(bool Success, string? Error)> CancelAsync(Guid id, Guid performedBy);
 }
@@ -38,6 +38,8 @@ public class BookingService : IBookingService
         BookingCode = b.BookingCode,
         CheckInDate = b.CheckInDate,
         CheckOutDate = b.CheckOutDate,
+        OriginalCheckOutDate = b.OriginalCheckOutDate,
+        ApprovedExtraHours = b.ApprovedExtraHours,
         Status = b.Status.ToString(),
         ActualCheckIn = b.CheckIn?.ActualCheckIn,
         ActualCheckOut = b.CheckOut?.ActualCheckOut
@@ -107,6 +109,15 @@ public class BookingService : IBookingService
         return !await query.AnyAsync();
     }
 
+    // Kiểm tra có khách nào đang xếp hàng chờ (WAITING/NOTIFIED) trùng khoảng ngày này không
+    private async Task<bool> HasWaitlistConflictAsync(Guid roomId, DateOnly rangeStart, DateOnly rangeEnd)
+    {
+        return await _context.RoomWaitlist.AnyAsync(w =>
+            w.RoomId == roomId &&
+            (w.Status == WaitlistStatus.WAITING || w.Status == WaitlistStatus.NOTIFIED) &&
+            w.DesiredCheckIn < rangeEnd && w.DesiredCheckOut > rangeStart);
+    }
+
     public async Task<(BookingDto? Booking, string? Error)> CreateAsync(CreateBookingDto dto, Guid performedBy)
     {
         if (dto.CheckOutDate <= dto.CheckInDate)
@@ -118,6 +129,7 @@ public class BookingService : IBookingService
             return (null, "Phòng đang bảo trì, không thể đặt.");
         if (room.Status == RoomStatus.CLEANING)
             return (null, "Phòng đang dọn dẹp, chưa thể đặt.");
+
         if (!await _context.Customers.AnyAsync(c => c.Id == dto.CustomerId))
             return (null, "Khách hàng không tồn tại.");
 
@@ -132,16 +144,21 @@ public class BookingService : IBookingService
             BookingCode = "BK" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"),
             CheckInDate = dto.CheckInDate,
             CheckOutDate = dto.CheckOutDate,
+            OriginalCheckOutDate = dto.CheckOutDate,
             Status = BookingStatus.PENDING,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Bookings.Add(entity);
 
-        if (room.Status == RoomStatus.AVAILABLE)
+        // Chỉ khóa phòng RESERVED nếu khách nhận phòng NGAY HÔM NAY.
+        // Đặt cho tương lai thì phòng vẫn AVAILABLE hôm nay.
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (room.Status == RoomStatus.AVAILABLE && dto.CheckInDate <= today)
             room.Status = RoomStatus.RESERVED;
 
-        await LogAsync(entity.Id, BookingAction.CREATED, performedBy, $"Đặt phòng {room.RoomNumber} từ {dto.CheckInDate} đến {dto.CheckOutDate}");
+        await LogAsync(entity.Id, BookingAction.CREATED, performedBy,
+            $"Đặt phòng {room.RoomNumber} từ {dto.CheckInDate} đến {dto.CheckOutDate}");
 
         await _context.SaveChangesAsync();
         await _context.Entry(entity).Reference(b => b.Customer).LoadAsync();
@@ -189,25 +206,27 @@ public class BookingService : IBookingService
         return (true, null);
     }
 
-    public async Task<(bool Success, string? Error, decimal? TotalAmount)> CheckOutAsync(Guid id, CheckOutRequestDto dto, Guid performedBy)
+    public async Task<(bool Success, string? Error, decimal? TotalAmount, string? InvoiceDescription)> CheckOutAsync(
+        Guid id, CheckOutRequestDto dto, Guid performedBy)
     {
         var b = await _context.Bookings
-            .Include(x => x.Room).Include(x => x.CheckIn)
+            .Include(x => x.Room).ThenInclude(r => r.RoomType)
+            .Include(x => x.CheckIn)
             .Include(x => x.BookingServices)
             .FirstOrDefaultAsync(x => x.Id == id);
 
-        if (b is null) return (false, "Không tìm thấy đặt phòng.", null);
-        if (b.Status != BookingStatus.CHECKED_IN) return (false, "Đặt phòng chưa nhận phòng, không thể trả.", null);
+        if (b is null) return (false, "Không tìm thấy đặt phòng.", null, null);
+        if (b.Status != BookingStatus.CHECKED_IN) return (false, "Đặt phòng chưa nhận phòng, không thể trả.", null, null);
 
         var actualCheckOut = dto.ActualCheckOutTime ?? DateTime.UtcNow;
-
-        var roomType = await _context.Rooms.Where(r => r.Id == b.RoomId)
-            .Select(r => r.RoomType).FirstAsync();
+        var roomType = b.Room!.RoomType;
+        var pricePerNight = roomType.PricePerNight;
 
         var actualCheckOutDateOnly = DateOnly.FromDateTime(actualCheckOut);
         int nightsStayed;
         string checkoutNote;
         decimal surcharge = 0;
+        int lateHours = 0;
         BookingAction action = BookingAction.CHECKED_OUT;
 
         if (actualCheckOutDateOnly < b.CheckOutDate)
@@ -228,8 +247,8 @@ public class BookingService : IBookingService
             }
             else if (actualCheckOut.Hour > BookingBusinessRules.StandardCheckOutHour)
             {
-                var lateHours = actualCheckOut.Hour - BookingBusinessRules.StandardCheckOutHour;
-                surcharge = roomType.PricePerNight * BookingBusinessRules.LateCheckoutHourlyRate * lateHours;
+                lateHours = actualCheckOut.Hour - BookingBusinessRules.StandardCheckOutHour;
+                surcharge = pricePerNight * BookingBusinessRules.LateCheckoutHourlyRate * lateHours;
                 checkoutNote = $"Trả phòng trễ {lateHours} giờ so với giờ chuẩn ({BookingBusinessRules.StandardCheckOutHour}h). Phụ phí {surcharge:N0}đ.";
                 action = BookingAction.LATE_CHECKOUT;
             }
@@ -245,9 +264,29 @@ public class BookingService : IBookingService
             action = BookingAction.LATE_CHECKOUT;
         }
 
-        var roomAmount = nightsStayed * roomType.PricePerNight;
+        // ---------- Tách "thuê gốc" vs "gia hạn" để in rõ trên hóa đơn ----------
+        var originalNights = BookingBusinessRules.NightsBetween(b.CheckInDate, b.OriginalCheckOutDate);
+        var originalNightsCharged = Math.Min(nightsStayed, originalNights);
+        var extendedNightsCharged = nightsStayed - originalNightsCharged;
+
+        var roomAmount = nightsStayed * pricePerNight;
         var serviceAmount = b.BookingServices.Sum(bs => bs.Quantity * bs.UnitPrice);
         var totalAmount = roomAmount + serviceAmount + surcharge;
+
+        // ---------- Xây chuỗi mô tả chi tiết cho hóa đơn ----------
+        var lines = new List<string>();
+        lines.Add($"Thuê gốc: {originalNightsCharged} đêm x {pricePerNight:N0}đ = {originalNightsCharged * pricePerNight:N0}đ");
+        if (extendedNightsCharged > 0)
+            lines.Add($"Gia hạn thêm: {extendedNightsCharged} đêm x {pricePerNight:N0}đ = {extendedNightsCharged * pricePerNight:N0}đ");
+        if (lateHours > 0)
+        {
+            var hourlyRate = pricePerNight * BookingBusinessRules.LateCheckoutHourlyRate;
+            lines.Add($"Thêm giờ (trễ so với giờ chuẩn): {lateHours} giờ x {hourlyRate:N0}đ/giờ = {surcharge:N0}đ");
+        }
+        if (serviceAmount > 0)
+            lines.Add($"Dịch vụ đi kèm: {serviceAmount:N0}đ");
+        lines.Add($"Tổng cộng: {totalAmount:N0}đ");
+        var description = string.Join("\n", lines);
 
         _context.CheckOuts.Add(new CheckOut
         {
@@ -266,17 +305,18 @@ public class BookingService : IBookingService
             ServiceAmount = serviceAmount,
             Surcharge = surcharge,
             TotalAmount = totalAmount,
+            Description = description,
             PaymentStatus = PaymentStatus.UNPAID,
             IssuedAt = DateTime.UtcNow
         });
 
         b.Status = BookingStatus.CHECKED_OUT;
-        b.Room!.Status = RoomStatus.CLEANING;
+        b.Room.Status = RoomStatus.CLEANING;
 
         await LogAsync(id, action, performedBy, checkoutNote);
         await _context.SaveChangesAsync();
 
-        return (true, null, totalAmount);
+        return (true, null, totalAmount, description);
     }
 
     public async Task<(bool Success, string? Error)> ExtendAsync(Guid id, ExtendBookingDto dto, Guid performedBy)
@@ -285,19 +325,73 @@ public class BookingService : IBookingService
         if (b is null) return (false, "Không tìm thấy đặt phòng.");
         if (b.Status != BookingStatus.CHECKED_IN)
             return (false, "Chỉ gia hạn được khi khách đang ở trong phòng (đã check-in).");
-        if (dto.NewCheckOutDate <= b.CheckOutDate)
-            return (false, "Ngày trả phòng mới phải muộn hơn ngày hiện tại.");
 
-        var available = await IsRoomAvailableAsync(b.RoomId, b.CheckOutDate, dto.NewCheckOutDate, id);
-        if (!available)
-            return (false, "Phòng đã có khách khác đặt ngay sau ngày trả dự kiến, không thể gia hạn.");
+        var extensionType = dto.ExtensionType?.ToUpperInvariant();
 
-        var oldCheckOut = b.CheckOutDate;
-        b.CheckOutDate = dto.NewCheckOutDate;
+        // ---------------- Gia hạn thêm ĐÊM ----------------
+        if (extensionType == "DAYS")
+        {
+            if (dto.NewCheckOutDate is null || dto.NewCheckOutDate <= b.CheckOutDate)
+                return (false, "Ngày trả phòng mới phải muộn hơn ngày hiện tại.");
 
-        await LogAsync(id, BookingAction.EXTENDED, performedBy, $"Gia hạn từ {oldCheckOut} sang {dto.NewCheckOutDate}");
-        await _context.SaveChangesAsync();
-        return (true, null);
+            var noBookingConflict = await IsRoomAvailableAsync(b.RoomId, b.CheckOutDate, dto.NewCheckOutDate.Value, id);
+            if (!noBookingConflict)
+                return (false, "Phòng đã có khách khác đặt ngay sau ngày trả dự kiến, không thể gia hạn.");
+
+            var hasWaitlist = await HasWaitlistConflictAsync(b.RoomId, b.CheckOutDate, dto.NewCheckOutDate.Value);
+            if (hasWaitlist)
+                return (false, "Có khách đang xếp hàng chờ phòng này trong khoảng thời gian gia hạn. Hãy liên hệ khách trong hàng chờ trước khi gia hạn.");
+
+            var oldCheckOut = b.CheckOutDate;
+            b.CheckOutDate = dto.NewCheckOutDate.Value;
+
+            await LogAsync(id, BookingAction.EXTENDED, performedBy,
+                $"Gia hạn thêm đêm: từ {oldCheckOut} sang {dto.NewCheckOutDate.Value} " +
+                $"(đã kiểm tra không trùng đặt phòng khác và không có khách trong hàng chờ).");
+
+            await _context.SaveChangesAsync();
+            return (true, null);
+        }
+
+        // ---------------- Gia hạn thêm GIỜ (trong ngày trả dự kiến) ----------------
+        if (extensionType == "HOURS")
+        {
+            if (dto.AdditionalHours is null || dto.AdditionalHours <= 0)
+                return (false, "Số giờ gia hạn không hợp lệ.");
+            if (dto.AdditionalHours > BookingBusinessRules.MaxApprovedExtraHours)
+                return (false, $"Chỉ được gia hạn tối đa {BookingBusinessRules.MaxApprovedExtraHours} giờ. Nếu cần lâu hơn, hãy gia hạn thêm đêm.");
+
+            var extensionDay = b.CheckOutDate;
+
+            // Kiểm tra KHÔNG có khách khác nhận phòng đúng ngày này
+            var hasArrivalSameDay = await _context.Bookings.AnyAsync(x =>
+                x.RoomId == b.RoomId && x.Id != b.Id &&
+                x.Status != BookingStatus.CANCELLED && x.Status != BookingStatus.CHECKED_OUT &&
+                x.CheckInDate == extensionDay);
+
+            // Kiểm tra KHÔNG có ai trong hàng chờ mong muốn nhận phòng đúng ngày này
+            var hasWaitlistSameDay = await _context.RoomWaitlist.AnyAsync(w =>
+                w.RoomId == b.RoomId &&
+                (w.Status == WaitlistStatus.WAITING || w.Status == WaitlistStatus.NOTIFIED) &&
+                w.DesiredCheckIn == extensionDay);
+
+            if (hasArrivalSameDay || hasWaitlistSameDay)
+                return (false, "Phòng đã có khách khác nhận phòng hoặc đang có người chờ đúng ngày này, " +
+                    "không thể gia hạn thêm giờ (cần chừa thời gian cho lao công dọn phòng). " +
+                    "Có thể đề nghị khách gia hạn thêm cả đêm nếu phòng còn trống, hoặc từ chối.");
+
+            b.ApprovedExtraHours += dto.AdditionalHours.Value;
+
+            await LogAsync(id, BookingAction.EXTENDED, performedBy,
+                $"Duyệt gia hạn thêm {dto.AdditionalHours} giờ trong ngày {extensionDay:dd/MM/yyyy} " +
+                $"(đã kiểm tra không có khách nhận phòng/hàng chờ cùng ngày, đảm bảo còn thời gian " +
+                $"{BookingBusinessRules.HousekeepingBufferMinutes} phút cho lao công dọn phòng trước ca tiếp theo).");
+
+            await _context.SaveChangesAsync();
+            return (true, null);
+        }
+
+        return (false, "ExtensionType không hợp lệ (chỉ chấp nhận DAYS hoặc HOURS).");
     }
 
     public async Task<(bool Success, string? Error)> CancelAsync(Guid id, Guid performedBy)

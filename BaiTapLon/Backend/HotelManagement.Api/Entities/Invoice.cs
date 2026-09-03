@@ -18,6 +18,10 @@ public class Invoice
     public decimal ServiceAmount { get; set; }
     public decimal Surcharge { get; set; }
     public decimal TotalAmount { get; set; }
+
+    // Mô tả chi tiết từng dòng tiền: thuê gốc bao nhiêu đêm, gia hạn thêm bao nhiêu đêm/giờ, đơn giá
+    public string? Description { get; set; }
+
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.UNPAID;
     public DateTime IssuedAt { get; set; }
 }
