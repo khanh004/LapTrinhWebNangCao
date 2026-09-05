@@ -4,6 +4,7 @@ import { bookingsApi } from "../api/bookings";
 import { customersApi } from "../api/customers";
 import { waitlistApi } from "../api/waitlist";
 import { StatusBadge } from "./Layout";
+import { getRoomImageUrl } from "../utils/roomImage";
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 const tomorrowStr = () => {
@@ -16,11 +17,11 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
   const [checkIn, setCheckIn] = useState(todayStr());
   const [checkOut, setCheckOut] = useState(tomorrowStr());
   const [availability, setAvailability] = useState(null);
+  const [roomDetail, setRoomDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Tìm khách hàng
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -28,21 +29,25 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
 
-  const loadAvailability = async () => {
+  const loadAll = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await roomsApi.checkAvailability(roomId, checkIn, checkOut);
-      setAvailability(res.data);
+      const [availRes, detailRes] = await Promise.all([
+        roomsApi.checkAvailability(roomId, checkIn, checkOut),
+        roomsApi.getById(roomId),
+      ]);
+      setAvailability(availRes.data);
+      setRoomDetail(detailRes.data);
     } catch (err) {
-      setError(err.response?.data || "Không kiểm tra được tình trạng phòng.");
+      setError(err.response?.data || "Không tải được thông tin phòng.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAvailability();
+    loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkIn, checkOut]);
 
@@ -132,30 +137,64 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
     }
   };
 
+    const handleConvertWaitlist = async (waitlistId) => {
+    setError("");
+    setSuccess("");
+    try {
+      await waitlistApi.convert(waitlistId);
+      setSuccess("Đã chuyển khách chờ thành đặt phòng!");
+      await loadAll();
+      onChanged?.();
+    } catch (err) {
+      setError(err.response?.data || "Chuyển đổi thất bại.");
+    }
+  };
+
+  const handleCancelWaitlist = async (waitlistId) => {
+    setError("");
+    setSuccess("");
+    try {
+      await waitlistApi.cancel(waitlistId);
+      setSuccess("Đã hủy khách khỏi hàng chờ.");
+      await loadAll();
+      onChanged?.();
+    } catch (err) {
+      setError("Hủy thất bại.");
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 modal-overlay">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto modal-panel">
-        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
-          <div>
-            <p className="text-xs text-gray-400 font-medium">Chi tiết phòng</p>
-            <h2 className="text-lg font-bold text-gray-900 font-display">
-              Phòng {availability?.roomNumber ?? "..."}
-            </h2>
-          </div>
+        <div className="relative">
+        <img
+  src={getRoomImageUrl(roomDetail?.roomTypeName)}
+  alt="Ảnh phòng"
+            className="w-full h-40 object-cover"
+          />
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/90 backdrop-blur flex items-center justify-center text-gray-500 hover:bg-white hover:text-gray-800 transition-colors"
           >
             <svg viewBox="0 0 24 24" className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
             </svg>
           </button>
+          <div className="absolute bottom-3 left-4">
+            <p className="text-xs text-white/80 font-medium drop-shadow">Chi tiết phòng</p>
+            <h2 className="text-xl font-bold text-white font-display drop-shadow">
+              Phòng {roomDetail?.roomNumber ?? "..."}
+            </h2>
+          </div>
         </div>
 
         <div className="p-6">
-          {availability && (
-            <div className="mb-4">
-              <StatusBadge status={availability.currentStatus} />
+          {roomDetail && (
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-gray-500">
+                {roomDetail.roomTypeName} · Tầng {roomDetail.floor ?? "-"}
+              </p>
+              <StatusBadge status={roomDetail.status} />
             </div>
           )}
 
@@ -186,7 +225,7 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
                 <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
               </svg>
-              Đang kiểm tra tình trạng phòng...
+              Đang tải thông tin phòng...
             </div>
           )}
 
@@ -240,6 +279,50 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
               )}
             </div>
           )}
+
+          {/* ---------- Danh sách khách đang chờ phòng này (đầy đủ, để báo lại cho khách sau) ---------- */}
+          {!loading && roomDetail?.waitingCustomers?.length > 0 && (
+  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4">
+    <p className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" strokeLinecap="round" />
+      </svg>
+      {roomDetail.waitingCustomers.length} khách đang xếp hàng chờ phòng này
+    </p>
+    <div className="space-y-1.5">
+      {roomDetail.waitingCustomers.map((w, idx) => (
+        <div
+          key={w.id ?? idx}
+          className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm border border-amber-100"
+        >
+          <div>
+            <span className="font-medium text-gray-800">
+              #{w.queuePosition ?? idx + 1}. {w.customerName}
+            </span>
+            <span className="text-xs text-gray-500 ml-2">
+              {w.desiredCheckIn} → {w.desiredCheckOut}
+            </span>
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => handleConvertWaitlist(w.id)}
+              className="chip-btn chip-btn-green text-xs px-2 py-1 rounded"
+            >
+              Chuyển đặt phòng
+            </button>
+            <button
+              onClick={() => handleCancelWaitlist(w.id)}
+              className="chip-btn chip-btn-red text-xs px-2 py-1 rounded"
+            >
+              Hủy
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
           {/* ---------- Chọn khách hàng ---------- */}
           <div className="border-t border-gray-100 pt-4 mb-4">

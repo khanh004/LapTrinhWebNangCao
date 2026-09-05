@@ -157,6 +157,7 @@ export default function Layout({ title, children }) {
         </svg>
       }
     />
+    
     <NavTab
       to="/bookings"
       label="Đặt phòng"
@@ -167,6 +168,17 @@ export default function Layout({ title, children }) {
         </svg>
       }
     />
+
+    <NavTab
+  to="/customers"
+  label="Tra cứu khách"
+  icon={
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+    </svg>
+  }
+/>
     <NavTab
       to="/housekeeping"
       label="Buồng phòng"
@@ -230,6 +242,16 @@ export default function Layout({ title, children }) {
         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="4" width="18" height="17" rx="2" />
           <path d="M8 2v4M16 2v4M3 10h18" strokeLinecap="round" />
+        </svg>
+      }
+    />
+    <NavTab
+      to="/customers"
+      label="Tra cứu khách"
+      icon={
+        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" strokeLinecap="round" />
         </svg>
       }
     />

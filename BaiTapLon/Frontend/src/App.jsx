@@ -9,6 +9,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import RoomTypesManagement from "./pages/admin/RoomTypesManagement";
 import RoomsManagement from "./pages/admin/RoomsManagement";
 import CustomersManagement from "./pages/admin/CustomersManagement";
+import CustomerLookup from "./pages/CustomerLookup";
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -43,6 +44,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+  path="/customers"
+  element={
+    <ProtectedRoute allowedRoles={["Admin", "Receptionist"]}>
+      <CustomerLookup />
+    </ProtectedRoute>
+  }
+/>
 
           <Route
             path="/housekeeping"
