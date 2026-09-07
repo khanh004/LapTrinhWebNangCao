@@ -65,13 +65,14 @@ public class RoomsController : ControllerBase
     }
     
     [HttpPatch("{id:guid}/confirm-cleaning")]
-    [Authorize(Roles = "Admin,Housekeeping")]
-    public async Task<IActionResult> ConfirmCleaning(Guid id)
-    {
-        var employeeId = Guid.Parse(User.FindFirstValue("employeeId")!);
-        var (success, error) = await _service.ConfirmCleaningAsync(id, employeeId);
-        return success ? NoContent() : BadRequest(error);
-    }
+[Authorize(Roles = "Admin,Housekeeping")]
+public async Task<IActionResult> ConfirmCleaning(Guid id)
+{
+    var employeeId = Guid.Parse(User.FindFirstValue("employeeId")!);
+    var isAdmin = User.IsInRole("Admin");
+    var (success, error) = await _service.ConfirmCleaningAsync(id, employeeId, isAdmin);
+    return success ? NoContent() : BadRequest(error);
+}
     [HttpGet("{id:guid}/check-availability")]
     public async Task<ActionResult<RoomAvailabilityDto>> CheckAvailability(
         Guid id, [FromQuery] DateOnly checkIn, [FromQuery] DateOnly checkOut)
@@ -79,4 +80,28 @@ public class RoomsController : ControllerBase
         var result = await _service.CheckAvailabilityAsync(id, checkIn, checkOut);
         return result is null ? NotFound() : Ok(result);
     }
+
+    [HttpGet("search-available")]
+[Authorize(Roles = "Admin,Receptionist")]
+public async Task<ActionResult<List<RoomDto>>> SearchAvailable([FromQuery] DateOnly checkIn, [FromQuery] DateOnly checkOut)
+    => Ok(await _service.SearchAvailableAsync(checkIn, checkOut));
+
+[HttpPatch("{id:guid}/claim-cleaning")]
+[Authorize(Roles = "Admin,Housekeeping")]
+public async Task<IActionResult> ClaimCleaning(Guid id)
+{
+    var employeeId = Guid.Parse(User.FindFirstValue("employeeId")!);
+    var (success, error) = await _service.ClaimCleaningAsync(id, employeeId);
+    return success ? NoContent() : BadRequest(error);
+}
+
+[HttpPatch("{id:guid}/release-cleaning-claim")]
+[Authorize(Roles = "Admin,Housekeeping")]
+public async Task<IActionResult> ReleaseCleaningClaim(Guid id)
+{
+    var employeeId = Guid.Parse(User.FindFirstValue("employeeId")!);
+    var isAdmin = User.IsInRole("Admin");
+    var (success, error) = await _service.ReleaseCleaningClaimAsync(id, employeeId, isAdmin);
+    return success ? NoContent() : BadRequest(error);
+}
 }

@@ -44,4 +44,8 @@ public class WaitlistController : ControllerBase
         var success = await _service.CancelAsync(id);
         return success ? NoContent() : NotFound();
     }
+
+    [HttpGet("notified")]
+public async Task<ActionResult<List<WaitlistDto>>> GetAllNotified()
+    => Ok(await _service.GetAllNotifiedAsync());
 }

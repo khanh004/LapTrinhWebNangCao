@@ -20,6 +20,9 @@ public static class BookingBusinessRules
 
     // Mốc deadline mặc định: ngày nhận phòng, lúc giờ chuẩn + số phút gia hạn no-show
     public static DateTime CalculateDefaultArrivalDeadline(DateOnly checkInDate)
-        => checkInDate.ToDateTime(new TimeOnly(StandardCheckInHour, 0))
-            .AddMinutes(NoShowGraceMinutesAfterStandardCheckIn);
+{
+    var localDateTime = checkInDate.ToDateTime(new TimeOnly(StandardCheckInHour, 0))
+        .AddMinutes(NoShowGraceMinutesAfterStandardCheckIn);
+    return DateTime.SpecifyKind(localDateTime, DateTimeKind.Utc);
+}
 }

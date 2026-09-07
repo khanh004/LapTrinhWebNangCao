@@ -12,5 +12,6 @@ public class LoginResponseDto
     public DateTime ExpiresAt { get; set; }
     public string Username { get; set; } = null!;
     public string FullName { get; set; } = null!;
+    public Guid EmployeeId { get; set; }
     public List<string> Roles { get; set; } = new();
 }

@@ -429,12 +429,11 @@ public class BookingService : IBookingService
         if (b is null) return (false, "Không tìm thấy đặt phòng.");
         if (b.Status is not (BookingStatus.PENDING or BookingStatus.CONFIRMED))
             return (false, "Chỉ ghi chú hẹn giờ được khi đặt phòng đang chờ nhận phòng.");
-        if (dto.NewArrivalDeadline <= DateTime.Now)
-            return (false, "Giờ hẹn mới phải ở tương lai.");
+       if (dto.NewArrivalDeadline <= DateTime.UtcNow)
+    return (false, "Giờ hẹn mới phải ở tương lai.");
 
         var oldDeadline = b.ArrivalDeadline;
-        b.ArrivalDeadline = dto.NewArrivalDeadline;
-
+        b.ArrivalDeadline = DateTime.SpecifyKind(dto.NewArrivalDeadline, DateTimeKind.Utc);
         await LogAsync(id, BookingAction.LATE_ARRIVAL_NOTED, performedBy,
             $"Lễ tân đã liên hệ được khách. Khách hẹn đến lúc {dto.NewArrivalDeadline:HH:mm dd/MM} " +
             $"(dời từ hạn cũ {oldDeadline:HH:mm dd/MM}). Ghi chú: {dto.Note ?? "(không có)"}");
@@ -446,7 +445,7 @@ public class BookingService : IBookingService
     // Chạy định kỳ bởi Background Service - tự động hủy các booking quá giờ nhận phòng mà chưa check-in
     public async Task ProcessNoShowCancellationsAsync(Guid systemEmployeeId)
     {
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var overdue = await _context.Bookings
             .Include(b => b.Room)
             .Where(b => (b.Status == BookingStatus.PENDING || b.Status == BookingStatus.CONFIRMED) &&

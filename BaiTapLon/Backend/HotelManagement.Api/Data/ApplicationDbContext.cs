@@ -85,13 +85,15 @@ public class ApplicationDbContext : DbContext
         });
 
         modelBuilder.Entity<Room>(e =>
-        {
-            e.ToTable("rooms");
-            e.HasIndex(x => x.RoomNumber).IsUnique();
-            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
-            e.HasOne(x => x.RoomType).WithMany(rt => rt.Rooms)
-                .HasForeignKey(x => x.RoomTypeId).OnDelete(DeleteBehavior.Restrict);
-        });
+{
+    e.ToTable("rooms");
+    e.HasIndex(x => x.RoomNumber).IsUnique();
+    e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+    e.HasOne(x => x.RoomType).WithMany(rt => rt.Rooms)
+        .HasForeignKey(x => x.RoomTypeId).OnDelete(DeleteBehavior.Restrict);
+    e.HasOne(x => x.CleaningClaimedByEmployee).WithMany()
+        .HasForeignKey(x => x.CleaningClaimedBy).OnDelete(DeleteBehavior.SetNull);
+});
 
         // ---------- Khách hàng ----------
         modelBuilder.Entity<Customer>(e =>

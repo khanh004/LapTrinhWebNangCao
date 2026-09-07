@@ -13,14 +13,22 @@ const tomorrowStr = () => {
   return d.toISOString().split("T")[0];
 };
 
-export default function RoomDetailModal({ roomId, onClose, onChanged }) {
-  const [checkIn, setCheckIn] = useState(todayStr());
-  const [checkOut, setCheckOut] = useState(tomorrowStr());
+const formatMoney = (n) => new Intl.NumberFormat("vi-VN").format(n) + "đ";
+
+const calcNights = (checkIn, checkOut) => {
+  const diff = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
+  return Math.max(1, Math.round(diff));
+};
+
+export default function RoomDetailModal({ roomId, onClose, onChanged, initialCheckIn, initialCheckOut }) {
+  const [checkIn, setCheckIn] = useState(initialCheckIn || todayStr());
+  const [checkOut, setCheckOut] = useState(initialCheckOut || tomorrowStr());
   const [availability, setAvailability] = useState(null);
   const [roomDetail, setRoomDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState([]);
@@ -66,6 +74,9 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
     setNewCustomerPhone("");
   };
 
+  const nights = calcNights(checkIn, checkOut);
+  const estimatedTotal = roomDetail ? nights * roomDetail.pricePerNight : 0;
+
   const handleCreateBooking = async () => {
     setError("");
     setSuccess("");
@@ -90,16 +101,16 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
         return;
       }
 
-      await bookingsApi.create({
+      const res = await bookingsApi.create({
         customerId,
         roomId,
         checkInDate: checkIn,
         checkOutDate: checkOut,
       });
 
-      setSuccess("Đặt phòng thành công!");
+      // Hiện màn hình xác nhận đầy đủ thay vì tự đóng ngay
+      setConfirmedBooking({ ...res.data, nights, estimatedTotal });
       onChanged?.();
-      setTimeout(onClose, 1000);
     } catch (err) {
       setError(err.response?.data || "Đặt phòng thất bại.");
     }
@@ -131,13 +142,13 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
       await waitlistApi.join(payload);
       setSuccess("Đã thêm khách vào hàng chờ!");
       onChanged?.();
-      setTimeout(onClose, 1000);
+      setTimeout(onClose, 1200);
     } catch (err) {
       setError(err.response?.data || "Thêm vào hàng chờ thất bại.");
     }
   };
 
-    const handleConvertWaitlist = async (waitlistId) => {
+  const handleConvertWaitlist = async (waitlistId) => {
     setError("");
     setSuccess("");
     try {
@@ -158,18 +169,74 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
       setSuccess("Đã hủy khách khỏi hàng chờ.");
       await loadAll();
       onChanged?.();
-    } catch (err) {
+    } catch {
       setError("Hủy thất bại.");
     }
   };
+
+  // ============= MÀN HÌNH XÁC NHẬN SAU KHI ĐẶT THÀNH CÔNG =============
+  if (confirmedBooking) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 modal-overlay">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 modal-panel text-center">
+          <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+            <svg viewBox="0 0 24 24" className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 font-display mb-1">Đặt phòng thành công!</h2>
+          <p className="text-sm text-gray-500 mb-5">Đọc lại thông tin dưới đây cho khách xác nhận.</p>
+
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-left text-sm space-y-2 mb-5">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Mã đặt phòng</span>
+              <span className="font-mono font-semibold text-gray-800">{confirmedBooking.bookingCode}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Khách hàng</span>
+              <span className="font-semibold text-gray-800">{confirmedBooking.customerName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Phòng</span>
+              <span className="font-semibold text-gray-800">{confirmedBooking.roomNumber}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Nhận phòng</span>
+              <span className="font-semibold text-gray-800">{confirmedBooking.checkInDate} (từ 14:00)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Trả phòng</span>
+              <span className="font-semibold text-gray-800">{confirmedBooking.checkOutDate} (trước 12:00)</span>
+            </div>
+            <div className="border-t border-gray-200 pt-2 flex justify-between">
+              <span className="text-gray-500">Tổng dự kiến ({confirmedBooking.nights} đêm)</span>
+              <span className="font-bold text-gray-900">{formatMoney(confirmedBooking.estimatedTotal)}</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 mb-5">
+            * Số tiền trên chỉ là ước tính, chưa gồm dịch vụ phát sinh hoặc phụ phí trả trễ nếu có —
+            hóa đơn chính thức sẽ được lập khi khách trả phòng.
+          </p>
+
+          <button
+            onClick={onClose}
+            className="btn btn-primary w-full py-2.5 text-sm"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 modal-overlay">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto modal-panel">
         <div className="relative">
-        <img
-  src={getRoomImageUrl(roomDetail?.roomTypeName)}
-  alt="Ảnh phòng"
+          <img
+            src={getRoomImageUrl(roomDetail?.roomTypeName)}
+            alt="Ảnh phòng"
             className="w-full h-40 object-cover"
           />
           <button
@@ -190,7 +257,7 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
 
         <div className="p-6">
           {roomDetail && (
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-1">
               <p className="text-sm text-gray-500">
                 {roomDetail.roomTypeName} · Tầng {roomDetail.floor ?? "-"}
               </p>
@@ -198,7 +265,13 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          {roomDetail && (
+            <p className="text-sm font-semibold text-[#101a2f] mb-4">
+              {formatMoney(roomDetail.pricePerNight)} / đêm
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Ngày nhận phòng</label>
               <input
@@ -219,6 +292,16 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
             </div>
           </div>
 
+          {/* Tổng tiền dự kiến - tự tính theo số đêm đã chọn */}
+          {roomDetail && (
+            <div className="flex items-center justify-between bg-[#101a2f]/5 border border-[#101a2f]/10 rounded-lg px-3.5 py-2.5 mb-4 text-sm">
+              <span className="text-gray-600">
+                Dự kiến: {nights} đêm × {formatMoney(roomDetail.pricePerNight)}
+              </span>
+              <span className="font-bold text-[#101a2f]">{formatMoney(estimatedTotal)}</span>
+            </div>
+          )}
+
           {loading && (
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-4">
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -230,7 +313,7 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
           )}
 
           {!loading && availability && (
-            <div className="bg-gray-50 rounded-xl p-3.5 mb-4 text-sm border border-gray-100">
+            <div className="bg-gray-50 rounded-xl p-3.5 mb-3 text-sm border border-gray-100">
               {availability.canBookImmediately && (
                 <p className="text-emerald-700 font-medium flex items-center gap-1.5">
                   <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -280,51 +363,64 @@ export default function RoomDetailModal({ roomId, onClose, onChanged }) {
             </div>
           )}
 
-          {/* ---------- Danh sách khách đang chờ phòng này (đầy đủ, để báo lại cho khách sau) ---------- */}
-          {!loading && roomDetail?.waitingCustomers?.length > 0 && (
-  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4">
-    <p className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" strokeLinecap="round" />
-      </svg>
-      {roomDetail.waitingCustomers.length} khách đang xếp hàng chờ phòng này
-    </p>
-    <div className="space-y-1.5">
-      {roomDetail.waitingCustomers.map((w, idx) => (
-        <div
-          key={w.id ?? idx}
-          className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm border border-amber-100"
-        >
-          <div>
-            <span className="font-medium text-gray-800">
-              #{w.queuePosition ?? idx + 1}. {w.customerName}
-            </span>
-            <span className="text-xs text-gray-500 ml-2">
-              {w.desiredCheckIn} → {w.desiredCheckOut}
-            </span>
+          {/* Chính sách nhận/trả phòng - luôn hiện để khách/lễ tân nắm trước khi đặt */}
+          <div className="flex items-start gap-2 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2.5 mb-4">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
+            </svg>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              Nhận phòng từ <strong>14:00</strong>, trả phòng trước <strong>12:00</strong>. Trả trễ
+              12h–18h: phụ phí <strong>10%/giờ</strong> trên giá đêm. Trả sau <strong>18h</strong>:
+              tính thêm 1 đêm.
+            </p>
           </div>
-          <div className="flex gap-1">
-            <button
-              onClick={() => handleConvertWaitlist(w.id)}
-              className="chip-btn chip-btn-green text-xs px-2 py-1 rounded"
-            >
-              Chuyển đặt phòng
-            </button>
-            <button
-              onClick={() => handleCancelWaitlist(w.id)}
-              className="chip-btn chip-btn-red text-xs px-2 py-1 rounded"
-            >
-              Hủy
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
 
-          {/* ---------- Chọn khách hàng ---------- */}
+          {/* Danh sách khách đang chờ phòng này */}
+          {!loading && roomDetail?.waitingCustomers?.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4">
+              <p className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" strokeLinecap="round" />
+                </svg>
+                {roomDetail.waitingCustomers.length} khách đang xếp hàng chờ phòng này
+              </p>
+              <div className="space-y-1.5">
+                {roomDetail.waitingCustomers.map((w, idx) => (
+                  <div
+                    key={w.id ?? idx}
+                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm border border-amber-100"
+                  >
+                    <div>
+                      <span className="font-medium text-gray-800">
+                        #{w.queuePosition ?? idx + 1}. {w.customerName}
+                      </span>
+                      <span className="text-xs text-gray-500 ml-2">
+                        {w.desiredCheckIn} → {w.desiredCheckOut}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleConvertWaitlist(w.id)}
+                        className="chip-btn chip-btn-green text-xs px-2 py-1 rounded"
+                      >
+                        Chuyển đặt phòng
+                      </button>
+                      <button
+                        onClick={() => handleCancelWaitlist(w.id)}
+                        className="chip-btn chip-btn-red text-xs px-2 py-1 rounded"
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Chọn khách hàng */}
           <div className="border-t border-gray-100 pt-4 mb-4">
             <p className="text-sm font-semibold text-gray-700 mb-2.5">Thông tin khách hàng</p>
 

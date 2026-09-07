@@ -7,11 +7,17 @@ export const roomsApi = {
     apiClient.get(`/rooms/${id}/check-availability`, {
       params: { checkIn, checkOut },
     }),
+    searchAvailable: (checkIn, checkOut) =>
+    apiClient.get("/rooms/search-available", { params: { checkIn, checkOut } }),
+  confirmCleaning: (id) => apiClient.patch(`/rooms/${id}/confirm-cleaning`),
+  claimCleaning: (id) => apiClient.patch(`/rooms/${id}/claim-cleaning`),
+  releaseCleaningClaim: (id) => apiClient.patch(`/rooms/${id}/release-cleaning-claim`),
   create: (data) => apiClient.post("/rooms", data),
   update: (id, data) => apiClient.put(`/rooms/${id}`, data),
   updateStatus: (id, status) => apiClient.patch(`/rooms/${id}/status`, { status }),
   confirmCleaning: (id) => apiClient.patch(`/rooms/${id}/confirm-cleaning`),
   delete: (id) => apiClient.delete(`/rooms/${id}`),
+
 };
 
 export const roomTypesApi = {

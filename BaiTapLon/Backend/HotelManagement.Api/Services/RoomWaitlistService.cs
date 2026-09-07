@@ -8,6 +8,7 @@ namespace HotelManagement.Api.Services;
 public interface IRoomWaitlistService
 {
     Task<List<WaitlistDto>> GetByRoomAsync(Guid roomId);
+    Task<List<WaitlistDto>> GetAllNotifiedAsync();
     Task<(WaitlistDto? Entry, string? Error)> JoinAsync(JoinWaitlistDto dto);
     Task<(BookingDto? Booking, string? Error)> ConvertToBookingAsync(Guid waitlistId, Guid performedBy);
     Task<bool> CancelAsync(Guid waitlistId);
@@ -46,6 +47,15 @@ public class RoomWaitlistService : IRoomWaitlistService
             .Select(w => ToDto(w))
             .ToListAsync();
     }
+    public async Task<List<WaitlistDto>> GetAllNotifiedAsync()
+{
+    return await _context.RoomWaitlist
+        .Include(w => w.Customer).Include(w => w.Room)
+        .Where(w => w.Status == WaitlistStatus.NOTIFIED)
+        .OrderBy(w => w.NotifiedAt)
+        .Select(w => ToDto(w))
+        .ToListAsync();
+}
 
     public async Task<(WaitlistDto? Entry, string? Error)> JoinAsync(JoinWaitlistDto dto)
     {

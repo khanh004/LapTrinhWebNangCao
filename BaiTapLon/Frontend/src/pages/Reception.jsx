@@ -13,12 +13,26 @@ const STATUS_FILTERS = [
   { value: "MAINTENANCE", label: "Bảo trì" },
 ];
 
+const todayStr = () => new Date().toISOString().split("T")[0];
+const tomorrowStr = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+};
+
 export default function Reception() {
   const [rooms, setRooms] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+
+  const [showRangeSearch, setShowRangeSearch] = useState(false);
+  const [rangeCheckIn, setRangeCheckIn] = useState(todayStr());
+  const [rangeCheckOut, setRangeCheckOut] = useState(tomorrowStr());
+  const [rangeResults, setRangeResults] = useState(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [rangeError, setRangeError] = useState("");
 
   const loadRooms = async () => {
     setLoading(true);
@@ -45,9 +59,34 @@ export default function Reception() {
     loadRooms();
   };
 
+  const handleRangeSearch = async (e) => {
+    e?.preventDefault?.();
+    setRangeError("");
+    if (rangeCheckOut <= rangeCheckIn) {
+      setRangeError("Ngày trả phải sau ngày nhận.");
+      return;
+    }
+    setRangeLoading(true);
+    try {
+      const res = await roomsApi.searchAvailable(rangeCheckIn, rangeCheckOut);
+      setRangeResults(res.data);
+    } catch (err) {
+      setRangeError(err.response?.data || "Tìm kiếm thất bại.");
+    } finally {
+      setRangeLoading(false);
+    }
+  };
+
+  const clearRangeSearch = () => {
+    setRangeResults(null);
+    setShowRangeSearch(false);
+  };
+
+  const displayedRooms = rangeResults !== null ? rangeResults : rooms;
+
   return (
     <Layout title="Bảng phòng">
-      <div className="card p-4 mb-5 flex flex-wrap items-center gap-3">
+      <div className="card p-4 mb-4 flex flex-wrap items-center gap-3">
         <form onSubmit={handleSearchSubmit} className="flex gap-2">
           <input
             className="input px-3 py-2 text-sm w-48"
@@ -59,6 +98,17 @@ export default function Reception() {
             Tìm
           </button>
         </form>
+
+        <button
+          onClick={() => setShowRangeSearch((v) => !v)}
+          className={`btn px-4 py-2 text-sm ${showRangeSearch ? "btn-primary" : "btn-outline"}`}
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="17" rx="2" />
+            <path d="M8 2v4M16 2v4M3 10h18" strokeLinecap="round" />
+          </svg>
+          Tìm phòng trống theo lịch
+        </button>
 
         <div className="flex flex-wrap gap-1.5 ml-auto">
           {STATUS_FILTERS.map((f) => (
@@ -75,7 +125,56 @@ export default function Reception() {
         </div>
       </div>
 
-      {loading ? (
+      {showRangeSearch && (
+        <div className="card p-4 mb-5 fade-up">
+          <p className="text-sm font-semibold text-gray-700 mb-3">
+            Tìm phòng còn trống trong khoảng thời gian
+          </p>
+          <form onSubmit={handleRangeSearch} className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Từ ngày</label>
+              <input
+                type="date"
+                className="input px-3 py-2 text-sm"
+                value={rangeCheckIn}
+                onChange={(e) => setRangeCheckIn(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Đến ngày</label>
+              <input
+                type="date"
+                className="input px-3 py-2 text-sm"
+                value={rangeCheckOut}
+                onChange={(e) => setRangeCheckOut(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={rangeLoading} className="btn btn-primary px-5 py-2 text-sm disabled:opacity-50">
+              {rangeLoading ? "Đang tìm..." : "Tìm phòng trống"}
+            </button>
+            {rangeResults !== null && (
+              <button type="button" onClick={clearRangeSearch} className="btn btn-ghost px-4 py-2 text-sm">
+                Bỏ tìm kiếm, xem tất cả
+              </button>
+            )}
+          </form>
+          {rangeError && <p className="text-red-600 text-sm mt-2">{rangeError}</p>}
+        </div>
+      )}
+
+      {rangeResults !== null && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg px-3.5 py-2.5 mb-4">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            Có <strong>{rangeResults.length}</strong> phòng trống từ <strong>{rangeCheckIn}</strong> đến{" "}
+            <strong>{rangeCheckOut}</strong>.
+          </span>
+        </div>
+      )}
+
+      {(loading && rangeResults === null) || rangeLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="card h-56 animate-pulse bg-gray-50" />
@@ -83,16 +182,16 @@ export default function Reception() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {rooms.map((room) => (
+          {displayedRooms.map((room) => (
             <div
               key={room.id}
               onClick={() => setSelectedRoomId(room.id)}
-              className="card overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all fade-up"
+              className="card-interactive overflow-hidden fade-up"
             >
               <div className="relative">
                 <img
-  src={getRoomImageUrl(room.roomTypeName)}
-  alt={`Phòng ${room.roomNumber}`}
+                  src={getRoomImageUrl(room.roomTypeName)}
+                  alt={`Phòng ${room.roomNumber}`}
                   className="w-full h-32 object-cover"
                   loading="lazy"
                 />
@@ -126,9 +225,11 @@ export default function Reception() {
             </div>
           ))}
 
-          {rooms.length === 0 && (
+          {displayedRooms.length === 0 && (
             <div className="card col-span-full text-center text-gray-400 py-14">
-              Không tìm thấy phòng nào.
+              {rangeResults !== null
+                ? "Không có phòng nào trống trong khoảng ngày này."
+                : "Không tìm thấy phòng nào."}
             </div>
           )}
         </div>
@@ -137,8 +238,13 @@ export default function Reception() {
       {selectedRoomId && (
         <RoomDetailModal
           roomId={selectedRoomId}
+          initialCheckIn={rangeResults !== null ? rangeCheckIn : undefined}
+          initialCheckOut={rangeResults !== null ? rangeCheckOut : undefined}
           onClose={() => setSelectedRoomId(null)}
-          onChanged={loadRooms}
+          onChanged={() => {
+            loadRooms();
+            if (rangeResults !== null) handleRangeSearch();
+          }}
         />
       )}
     </Layout>

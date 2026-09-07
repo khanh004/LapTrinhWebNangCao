@@ -1,0 +1,295 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  --color-navy-950: #0b1220;
+  --color-navy-900: #101a2f;
+  --color-navy-800: #16213f;
+  --color-gold-500: #c9a24b;
+  --color-gold-400: #d9b96a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #eef0f3;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(201, 162, 75, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 26, 47, 0.06) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: #1f2430;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ==================== CARD ==================== */
+/* Nổi bật rõ ràng trên nền xám của toàn hệ thống */
+.card {
+  background: #ffffff;
+  border: 1px solid #e4e6ec;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* Card có thể bấm vào (phòng, danh sách...) - nổi bật hơn nữa + có phản hồi khi giữ/nhấn */
+.card-interactive {
+  background: #ffffff;
+  border: 1px solid #e4e6ec;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.card-interactive:hover {
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.12);
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+}
+.card-interactive:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.1);
+}
+
+/* ==================== BUTTON ==================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  border-radius: 0.65rem;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-navy-900), var(--color-navy-800));
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0d1526, var(--color-navy-900));
+  box-shadow: 0 4px 14px rgba(16, 26, 47, 0.35);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1);
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, var(--color-gold-400), var(--color-gold-500));
+  color: #1a1300;
+  border: 1px solid rgba(26, 19, 0, 0.15);
+}
+.btn-gold:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 4px 14px rgba(201, 162, 75, 0.4);
+  transform: translateY(-1px);
+}
+.btn-gold:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-ghost {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e2e4e9;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: #e9eaee;
+  border-color: #cfd2d9;
+}
+.btn-ghost:active:not(:disabled) {
+  transform: scale(0.97);
+  background: #dfe1e6;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #d7d9de;
+  color: #4b5563;
+}
+.btn-outline:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #101a2f;
+  color: #101a2f;
+  transform: translateY(-1px);
+}
+.btn-outline:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Nút Tìm kiếm */
+.btn-search {
+  background: #101a2f;
+  color: #ffffff;
+  border: 1px solid #101a2f;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.btn-search:hover {
+  background: #0d1526;
+  box-shadow: 0 4px 10px rgba(16, 26, 47, 0.3);
+  transform: translateY(-1px);
+}
+.btn-search:active {
+  transform: scale(0.97);
+}
+
+/* ==================== INPUT ==================== */
+/* Nổi bật rõ trên nền, không còn mờ nhạt như input trần */
+.input {
+  width: 100%;
+  border: 1.5px solid #d7d9e0;
+  border-radius: 0.65rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  transition: all 0.15s ease;
+}
+.input:hover {
+  border-color: #b6bac4;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-navy-800);
+  box-shadow: 0 0 0 3px rgba(16, 26, 47, 0.12);
+}
+.input::placeholder {
+  color: #9aa0ab;
+}
+
+/* ==================== CHIP BUTTON (hành động nhỏ trong bảng) ==================== */
+.chip-btn {
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.chip-btn:hover {
+  transform: translateY(-1px);
+}
+.chip-btn:active {
+  transform: scale(0.95);
+}
+
+.chip-btn-blue { background: #2563eb; color: #fff; border-color: #1d4ed8; }
+.chip-btn-blue:hover { background: #1d4ed8; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4); }
+
+.chip-btn-green { background: #059669; color: #fff; border-color: #047857; }
+.chip-btn-green:hover { background: #047857; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.4); }
+
+.chip-btn-orange { background: #ea580c; color: #fff; border-color: #c2410c; }
+.chip-btn-orange:hover { background: #c2410c; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.4); }
+
+.chip-btn-red { background: #dc2626; color: #fff; border-color: #b91c1c; }
+.chip-btn-red:hover { background: #b91c1c; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.4); }
+
+.chip-btn-purple { background: #9333ea; color: #fff; border-color: #7e22ce; }
+.chip-btn-purple:hover { background: #7e22ce; box-shadow: 0 4px 10px rgba(147, 51, 234, 0.4); }
+
+.chip-btn-gray { background: #475569; color: #fff; border-color: #334155; }
+.chip-btn-gray:hover { background: #334155; box-shadow: 0 4px 10px rgba(71, 85, 105, 0.4); }
+
+/* ==================== FILTER CHIP (lọc trạng thái) ==================== */
+.filter-chip {
+  border: 1.5px solid transparent;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.filter-chip:active {
+  transform: scale(0.95);
+}
+.filter-chip-active {
+  background: #101a2f;
+  color: #ffffff;
+  border-color: #101a2f;
+  box-shadow: 0 2px 6px rgba(16, 26, 47, 0.25);
+}
+.filter-chip-inactive {
+  background: #ffffff;
+  color: #475569;
+  border-color: #dfe1e7;
+}
+.filter-chip-inactive:hover {
+  border-color: #101a2f;
+  color: #101a2f;
+  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.08);
+}
+
+/* ==================== MODAL ==================== */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-overlay {
+  animation: overlay-in 0.15s ease-out;
+}
+.modal-panel {
+  animation: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.25s ease-out both;
+}

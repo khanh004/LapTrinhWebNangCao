@@ -10,6 +10,7 @@ import RoomTypesManagement from "./pages/admin/RoomTypesManagement";
 import RoomsManagement from "./pages/admin/RoomsManagement";
 import CustomersManagement from "./pages/admin/CustomersManagement";
 import CustomerLookup from "./pages/CustomerLookup";
+import Invoices from "./pages/Invoices";
 
 function HomeRedirect() {
   const { user } = useAuth();
@@ -54,6 +55,14 @@ export default function App() {
   }
 />
 
+<Route
+  path="/invoices"
+  element={
+    <ProtectedRoute allowedRoles={["Admin", "Receptionist"]}>
+      <Invoices />
+    </ProtectedRoute>
+  }
+/>
           <Route
             path="/housekeeping"
             element={

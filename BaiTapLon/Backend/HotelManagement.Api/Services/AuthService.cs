@@ -57,13 +57,14 @@ public class AuthService : IAuthService
             expires: expiresAt,
             signingCredentials: creds);
 
-        return new LoginResponseDto
-        {
-            Token = new JwtSecurityTokenHandler().WriteToken(token),
-            ExpiresAt = expiresAt,
-            Username = user.Username,
-            FullName = user.Employee.FullName,
-            Roles = roles
-        };
+       return new LoginResponseDto
+{
+    Token = new JwtSecurityTokenHandler().WriteToken(token),
+    ExpiresAt = expiresAt,
+    Username = user.Username,
+    FullName = user.Employee.FullName,
+    EmployeeId = user.EmployeeId,
+    Roles = roles
+};
     }
 }
